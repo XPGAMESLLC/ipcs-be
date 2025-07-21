@@ -11,7 +11,7 @@ interface FragmentBuffer {
 }
 
 export default class Net {
-    private static listeners = new Map<string, ((payload: any, respond?: (resp: any) => void) => void)[]>();
+    private static listeners = new Map<string, ((id: string, payload: any, respond?: (resp: any) => void) => void)[]>();
     private static buffers = new Map<string, FragmentBuffer>();
     private static encoders = new Map<string, IEncoder>();
     private static readonly DefaultEncoding = "text";
@@ -24,7 +24,7 @@ export default class Net {
     }
 
     /** fire a script event, fragmenting JSON/text payload if needed. Optionally receive a response. */
-    public static send(channel: string, payload: any, opts?: { encoding?: string; id?: string }, callback?: (response: any) => void): void {
+    public static send(channel: string, payload: any, opts?: { encoding?: string; id?: string }, callback?: (response: any) => void): string {
         const encodingName = opts?.encoding ?? Net.DefaultEncoding;
         const encoder = Net.encoders.get(encodingName);
         if (!encoder) throw new Error(`Unknown encoder: ${encodingName}`);
@@ -33,7 +33,7 @@ export default class Net {
         // subscribe one-time response listener if callback provided
         if (callback) {
             const respChannel = `ipcs:${id}`;
-            const wrapper = (respPayload: any) => { try { callback(respPayload); } finally { Net.off(respChannel, wrapper as any); } };
+            const wrapper = (id: string, respPayload: any) => { try { callback(respPayload); } finally { Net.off(respChannel, wrapper as any); } };
             Net.on(respChannel, wrapper as any);
         }
         const totalLen = raw.length;
@@ -79,17 +79,18 @@ export default class Net {
                 system.sendScriptEvent(channel, envelope);
             }
         }
+        return id;
     }
 
     /** subscribe to reassembled messages on a channel */
-    public static on(channel: string, cb: (payload: any, respond?: (resp: any) => void) => void): void {
+    public static on(channel: string, cb: (id: string, payload: any, respond?: (resp: any) => void) => void): void {
         const arr = Net.listeners.get(channel) ?? [];
         arr.push(cb);
         Net.listeners.set(channel, arr);
     }
 
     /** unsubscribe a callback from a channel */
-    public static off(channel: string, cb: (payload: any, respond?: (resp: any) => void) => void): void {
+    public static off(channel: string, cb: (id: string, payload: any, respond?: (resp: any) => void) => void): void {
         const arr = this.listeners.get(channel);
         if (!arr) return;
         const filtered = arr.filter(fn => fn !== cb);
@@ -108,9 +109,11 @@ export default class Net {
                     const respond = (responsePayload: any) => {
                         Net.send(`ipcs:${id}`, responsePayload, { encoding: encodingName, id });
                     };
-                    (cb as any)(payload, respond);
+                    cb(id, payload, respond);
+                } else if (id) {
+                    cb(id, payload);
                 } else {
-                    (cb as any)(payload);
+                    throw new Error(`No ID provided for channel ${channel}`);
                 }
             } catch {
                 /* swallow errors */

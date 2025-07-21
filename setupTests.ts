@@ -2,6 +2,8 @@ import {
   RawMessage,
   ScriptEventCommandMessageAfterEvent,
   ScriptEventSource,
+  StartupEvent,
+  WorldLoadAfterEvent,
 } from "@minecraft/server";
 
 jest.mock(
@@ -32,6 +34,19 @@ jest.mock(
               cb: (e: ScriptEventCommandMessageAfterEvent) => void
             ) => {
               scriptEventListeners.push(cb);
+            },
+          },
+        },
+        beforeEvents: {
+          startup: {
+            subscribe: (
+              cb: (e: StartupEvent) => void
+            ) => {
+              cb({
+                blockComponentRegistry: {} as any,
+                customCommandRegistry: {} as any,
+                itemComponentRegistry: {} as any,
+              });
             },
           },
         },
@@ -66,6 +81,15 @@ jest.mock(
           message: (RawMessage | string)[] | RawMessage | string
         ): void => {
           console.log(message);
+        },
+        afterEvents: {
+          worldLoad: {
+            subscribe: (
+              cb: (e: WorldLoadAfterEvent) => void
+            ) => {
+              cb({});
+            },
+          },
         },
       },
     };

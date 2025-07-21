@@ -140,9 +140,16 @@ On world load **every pack simply broadcasts** a single fire-and-forget `ipcs:he
 ```jsonc
 {
   "v":1,
-  "pkg":"<myPackUid>",
-  "enc":["text","struct"],
-  "structs":["oreDef/v1","vec3/v1"]
+  "name":"<packName>",
+  "author": "<packAuthor>",
+  // What encodings are supported
+  "enc":["text","b64","struct"],
+  // Optional data per encoding
+  "encOpts": {
+    "struct": {
+      "supported": ["oreDef/v1"]
+    }
+  }
 }
 ```
 

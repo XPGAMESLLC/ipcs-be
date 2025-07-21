@@ -2,10 +2,12 @@ import { MAX_CHUNK } from "./encoding/encoding";
 import Net from "./net";
 import '../index';
 
+jest.setTimeout(100);
+
 describe("Net integration (TextPacketEncoding)", () => {
   test("send and receive small payload (TextPacketEncoding)", (done) => {
     const payload = { hello: "world", num: 42 };
-    Net.on("chan1", (data) => {
+    Net.on("chan1", (id, data) => {
       expect(data).toEqual(payload);
       done();
     });
@@ -22,7 +24,7 @@ describe("Net integration (TextPacketEncoding)", () => {
       longStr += String.fromCharCode(65 + (i % 26)); // cycles A-Z
     }
     const payload = { text: longStr };
-    Net.on("chan2", (data) => {
+    Net.on("chan2", (id, data) => {
       expect(data).toEqual(payload);
       done();
     });
@@ -35,7 +37,7 @@ describe("Net integration (TextPacketEncoding)", () => {
     const reqPayload = { foo: "bar" };
     // listener on request channel, responds via provided respond callback
     const requestChannel = "chan3:req";
-    Net.on(requestChannel, (data, respond) => {
+    Net.on(requestChannel, (id, data, respond) => {
       expect(data).toEqual(reqPayload);
       if (respond) respond({ ok: true });
     });
@@ -52,7 +54,7 @@ describe("Net integration (TextPacketEncoding)", () => {
 describe("Net integration (Base64PacketEncoding)", () => {
   test("send and receive small payload", (done) => {
     const payload = { hello: "world", num: 42 };
-    Net.on("chan1", (data) => {
+    Net.on("chan1", (id, data) => {
       expect(data).toEqual(payload);
       done();
     });
@@ -69,7 +71,7 @@ describe("Net integration (Base64PacketEncoding)", () => {
       longStr += String.fromCharCode(65 + (i % 26)); // cycles A-Z
     }
     const payload = { text: longStr };
-    Net.on("chan2", (data) => {
+    Net.on("chan2", (id, data) => {
       expect(data).toEqual(payload);
       done();
     });
@@ -82,7 +84,7 @@ describe("Net integration (Base64PacketEncoding)", () => {
     const reqPayload = { foo: "bar" };
     // listener on request channel, responds via provided respond callback
     const requestChannel = "chan3:req";
-    Net.on(requestChannel, (data, respond) => {
+    Net.on(requestChannel, (id, data, respond) => {
       expect(data).toEqual(reqPayload);
       if (respond) respond({ ok: true });
     });
