@@ -47,6 +47,18 @@ export function on(
   NetV1.on(channel, cb);
 }
 
+/**
+ * Unsubscribe a callback registered with `on`.
+ * @param channel - The script-event channel.
+ * @param cb - The same callback that was passed to `on`.
+ */
+export function off(
+  channel: string,
+  cb: (id: string, payload: any, respond?: (resp: any) => void) => void
+): void {
+  NetV1.off(channel, cb);
+}
+
 // Register the IPCS-BE script event handler
 system.beforeEvents.startup.subscribe(() => {
   system.afterEvents.scriptEventReceive.subscribe((evt) => {
