@@ -103,61 +103,75 @@ let supportedEncodings: string[] = ["b64", "text"];
 // Channel for the hello packet
 const HelloChannel = "ipcs:hello";
 
-export function init(initData: InitData) {
+let worldLoaded = false;
+let initData: InitData | undefined;
+let helloId = "";
+
+export function init(data: InitData) {
   if (initialized) {
     throw new Error("IPCS-BE is already initialized");
   }
-  // Send a hello packet when the world loads
-  const helloId = makeUUID().replace(/-/g, "");
-  world.afterEvents.worldLoad.subscribe(() => {
-    const packet: HelloPacket = {
-      name: initData.packName,
-      author: initData.packAuthor,
-      // Adjusted according to the library
-      v: version,
-      enc: ["text", "b64"],
-    };
-    // Text is the encoding every pack can read, whatever it supports
-    send(HelloChannel, packet, {
-      id: helloId,
-      encoding: "text"
-    });
-  });
-  on(HelloChannel, (id, payload) => {
-    // Handle the hello packet
-    if (id === helloId) {
-      // Ignore self-sent hello packets
-      return;
-    }
-    const helloPayload = payload as HelloPacket;
-    if (helloPayload.v > MaxVersion || helloPayload.v < MinVersion) {
-      warn(`Received hello packet with unsupported version ${helloPayload.v}`);
-      return;
-    }
-    if (!helloPayload.name || !helloPayload.author) {
-      warn("Received hello packet with missing name or author");
-      return;
-    }
-    if (
-      !helloPayload.enc ||
-      !Array.isArray(helloPayload.enc) ||
-      helloPayload.enc.length === 0
-    ) {
-      warn("Received hello packet with missing or invalid encodings");
-      return;
-    }
-    // Filter out unsupported encodings
-    for (const enc of [...supportedEncodings]) {
-      // add exception for text encoding, as it is bare minimum
-      if (enc === "text") continue;
-      if (!helloPayload.enc.includes(enc)) {
-        supportedEncodings = supportedEncodings.filter((e) => e !== enc);
-      }
-    }
-    KnownPacks.push({ name: helloPayload.name, author: helloPayload.author });
-  });
+  initData = data;
+  helloId = makeUUID().replace(/-/g, "");
   initialized = true;
+  // init can come from a before event, where sending is not allowed
+  if (worldLoaded) system.run(sendHello);
 }
+
+function sendHello() {
+  if (!initData) return;
+  const packet: HelloPacket = {
+    name: initData.packName,
+    author: initData.packAuthor,
+    // Adjusted according to the library
+    v: version,
+    enc: ["text", "b64"],
+  };
+  // Text is the encoding every pack can read, whatever it supports
+  send(HelloChannel, packet, {
+    id: helloId,
+    encoding: "text"
+  });
+}
+
+world.afterEvents.worldLoad.subscribe(() => {
+  worldLoaded = true;
+  sendHello();
+});
+
+on(HelloChannel, (id, payload) => {
+  // Handle the hello packet
+  if (id === helloId) {
+    // Ignore self-sent hello packets
+    return;
+  }
+  const helloPayload = payload as HelloPacket;
+  if (helloPayload.v > MaxVersion || helloPayload.v < MinVersion) {
+    warn(`Received hello packet with unsupported version ${helloPayload.v}`);
+    return;
+  }
+  if (!helloPayload.name || !helloPayload.author) {
+    warn("Received hello packet with missing name or author");
+    return;
+  }
+  if (
+    !helloPayload.enc ||
+    !Array.isArray(helloPayload.enc) ||
+    helloPayload.enc.length === 0
+  ) {
+    warn("Received hello packet with missing or invalid encodings");
+    return;
+  }
+  // Filter out unsupported encodings
+  for (const enc of [...supportedEncodings]) {
+    // add exception for text encoding, as it is bare minimum
+    if (enc === "text") continue;
+    if (!helloPayload.enc.includes(enc)) {
+      supportedEncodings = supportedEncodings.filter((e) => e !== enc);
+    }
+  }
+  KnownPacks.push({ name: helloPayload.name, author: helloPayload.author });
+});
 
 /**
  * Get the currently known packs.
