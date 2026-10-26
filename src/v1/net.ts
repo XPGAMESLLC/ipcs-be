@@ -178,11 +178,13 @@ export default class Net {
         if (!Number.isInteger(frag) || frag < 0 || frag >= Net.MaxFragments) return;
         const now = Date.now();
         Net.dropStale(now);
-        let buf = Net.buffers.get(id);
+        // a request and its response share the id, so the channel is part of the key
+        const key = `${channel}|${id}`;
+        let buf = Net.buffers.get(key);
         if (!buf) {
             if (Net.buffers.size >= Net.MaxBuffers) Net.dropOldest();
             buf = { parts: [], received: 0, touched: now };
-            Net.buffers.set(id, buf);
+            Net.buffers.set(key, buf);
         }
         buf.touched = now;
         if (buf.parts[frag] === undefined) {
@@ -192,7 +194,7 @@ export default class Net {
         }
         if (buf.lastIndex !== undefined && buf.received === buf.lastIndex + 1) {
             const full = buf.parts.join("");
-            Net.buffers.delete(id);
+            Net.buffers.delete(key);
             const payload = encoder.decode(full);
             if (payload !== null) Net.dispatch(channel, payload, id, encodingName);
         }
@@ -200,21 +202,21 @@ export default class Net {
 
     /** drop partial messages that got no fragment for BufferTimeoutMs */
     private static dropStale(now: number) {
-        for (const [id, buf] of Net.buffers) {
-            if (now - buf.touched > Net.BufferTimeoutMs) Net.buffers.delete(id);
+        for (const [key, buf] of Net.buffers) {
+            if (now - buf.touched > Net.BufferTimeoutMs) Net.buffers.delete(key);
         }
     }
 
     private static dropOldest() {
-        let oldestId: string | undefined;
+        let oldestKey: string | undefined;
         let oldest = Infinity;
-        for (const [id, buf] of Net.buffers) {
+        for (const [key, buf] of Net.buffers) {
             if (buf.touched < oldest) {
                 oldest = buf.touched;
-                oldestId = id;
+                oldestKey = key;
             }
         }
-        if (oldestId !== undefined) Net.buffers.delete(oldestId);
+        if (oldestKey !== undefined) Net.buffers.delete(oldestKey);
     }
 
     /** number of partial messages waiting for fragments */

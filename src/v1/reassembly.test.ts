@@ -112,6 +112,25 @@ describe("api", () => {
     });
   });
 
+  test("same id on two channels reassembles separately", () => {
+    const req = { req: "r".repeat(40) };
+    const resp = { resp: "s".repeat(40) };
+    const gotReq: any[] = [];
+    const gotResp: any[] = [];
+    const pending = Net.pendingCount();
+    Net.on("k:req", (_id, data) => gotReq.push(data));
+    Net.on("ipcs:cc01", (_id, data) => gotResp.push(data));
+    const a = fragments("cc01", req, 2);
+    const b = fragments("cc01", resp, 2);
+    Net.handleScriptEvent("k:req", a[0]);
+    Net.handleScriptEvent("ipcs:cc01", b[0]);
+    Net.handleScriptEvent("k:req", a[1]);
+    Net.handleScriptEvent("ipcs:cc01", b[1]);
+    expect(gotReq).toEqual([req]);
+    expect(gotResp).toEqual([resp]);
+    expect(Net.pendingCount()).toBe(pending);
+  });
+
   test("setVersion checks the new version", () => {
     expect(() => setVersion(2)).toThrow("version 2");
     expect(() => setVersion(0)).toThrow("version 0");
