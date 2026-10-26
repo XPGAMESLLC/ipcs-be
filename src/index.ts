@@ -1,5 +1,6 @@
 import { system, world } from "@minecraft/server";
 import NetV1, { SendOptions } from "./v1/net";
+import { makeUUID } from "./utils/uuid";
 
 export type { SendOptions };
 
@@ -107,7 +108,7 @@ export function init(initData: InitData) {
     throw new Error("IPCS-BE is already initialized");
   }
   // Send a hello packet when the world loads
-  let helloId = "";
+  const helloId = makeUUID().replace(/-/g, "");
   world.afterEvents.worldLoad.subscribe(() => {
     const packet: HelloPacket = {
       name: initData.packName,
@@ -116,7 +117,11 @@ export function init(initData: InitData) {
       v: version,
       enc: ["text", "b64"],
     };
-    helloId = send(HelloChannel, packet);
+    // Text is the encoding every pack can read, whatever it supports
+    send(HelloChannel, packet, {
+      id: helloId,
+      encoding: "text"
+    });
   });
   on(HelloChannel, (id, payload) => {
     // Handle the hello packet
