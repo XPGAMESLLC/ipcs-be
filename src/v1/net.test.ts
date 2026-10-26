@@ -97,3 +97,17 @@ describe("Net integration (Base64PacketEncoding)", () => {
     });
   });
 });
+describe("Net listener errors", () => {
+  test("a throwing listener is reported and does not stop the others", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const got: any[] = [];
+    Net.on("chan:err", () => {
+      throw new Error("boom");
+    });
+    Net.on("chan:err", (id, data) => got.push(data));
+    Net.send("chan:err", { a: 1 }, { encoding: "text" });
+    expect(got).toEqual([{ a: 1 }]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("boom"));
+    warn.mockRestore();
+  });
+});

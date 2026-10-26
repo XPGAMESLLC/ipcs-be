@@ -143,8 +143,10 @@ export default class Net {
                 } else {
                     throw new Error(`No ID provided for channel ${channel}`);
                 }
-            } catch {
-                /* swallow errors */
+            } catch (e) {
+                DEBUG: {
+                    console.warn(`IPCS-BE: listener on ${channel} threw: ${e}`);
+                }
             }
         }
     }
