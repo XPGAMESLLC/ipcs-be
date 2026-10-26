@@ -170,7 +170,8 @@ on(HelloChannel, (id, payload) => {
       supportedEncodings = supportedEncodings.filter((e) => e !== enc);
     }
   }
-  KnownPacks.push({ name: helloPayload.name, author: helloPayload.author });
+  const known = KnownPacks.some((p) => p.name === helloPayload.name && p.author === helloPayload.author);
+  if (!known) KnownPacks.push({ name: helloPayload.name, author: helloPayload.author });
 });
 
 /**
@@ -180,7 +181,7 @@ export function getKnownPacks(): KnownPack[] {
   if (!initialized) {
     throw new Error("IPCS-BE is not initialized");
   }
-  return KnownPacks;
+  return KnownPacks.map((p) => ({ ...p }));
 }
 
 function warn(message: string) {

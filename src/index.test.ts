@@ -84,6 +84,25 @@ describe("hello handshake", () => {
     expect(encodingOf(sent[sent.length - 1].message)).toBe("b64");
   });
 
+  test("a pack that says hello twice is known once", () => {
+    const { ipcs } = load();
+    ipcs.init({ packName: "A", packAuthor: "XP" });
+    const hello = { v: 1, name: "B", author: "Other", enc: ["text"] };
+    ipcs.send("ipcs:hello", hello, { encoding: "text" });
+    ipcs.send("ipcs:hello", hello, { encoding: "text" });
+    expect(ipcs.getKnownPacks()).toEqual([{ name: "B", author: "Other" }]);
+  });
+
+  test("changing the returned known packs does not change the library state", () => {
+    const { ipcs } = load();
+    ipcs.init({ packName: "A", packAuthor: "XP" });
+    ipcs.send("ipcs:hello", { v: 1, name: "B", author: "Other", enc: ["text"] }, { encoding: "text" });
+    const packs = ipcs.getKnownPacks();
+    packs[0].name = "changed";
+    packs.push({ name: "C", author: "X" });
+    expect(ipcs.getKnownPacks()).toEqual([{ name: "B", author: "Other" }]);
+  });
+
   test("init twice throws", () => {
     const { ipcs } = load();
     ipcs.init({ packName: "A", packAuthor: "XP" });
