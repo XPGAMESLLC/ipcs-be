@@ -5,9 +5,21 @@ import { makeUUID } from "../utils/uuid";
 import { TextPacketEncoder } from "./encoding/TextPacketEncoder";
 import { Base64PacketEncoder } from "./encoding/Base64PacketEncoder";
 
+export interface SendOptions {
+    encoding?: string;
+    id?: string;
+    /** with a callback: stop waiting for the response after this many ticks (default Net.ResponseTimeoutTicks) */
+    timeoutTicks?: number;
+    /** with a callback: called once when no response came in time */
+    onTimeout?: () => void;
+}
+
 interface FragmentBuffer {
-    parts: {body: string, frag: number, last: boolean}[];
+    parts: string[];
+    received: number;
     lastIndex?: number;
+    /** Date.now() of the last fragment */
+    touched: number;
 }
 
 export default class Net {
@@ -15,6 +27,14 @@ export default class Net {
     private static buffers = new Map<string, FragmentBuffer>();
     private static encoders = new Map<string, IEncoder>();
     private static readonly DefaultEncoding = "text";
+    /** a partial message is dropped when no fragment arrived for this long */
+    public static BufferTimeoutMs = 10_000;
+    /** at most this many partial messages are kept; a new one drops the oldest */
+    public static MaxBuffers = 64;
+    /** fragment indices at or above this are refused */
+    public static MaxFragments = 4096;
+    /** how long send() waits for a response by default (20 ticks = 1 s) */
+    public static ResponseTimeoutTicks = 200;
 
     /**
      * Register a new encoder implementation by its unique name.
@@ -24,7 +44,7 @@ export default class Net {
     }
 
     /** fire a script event, fragmenting JSON/text payload if needed. Optionally receive a response. */
-    public static send(channel: string, payload: any, opts?: { encoding?: string; id?: string }, callback?: (response: any) => void): string {
+    public static send(channel: string, payload: any, opts?: SendOptions, callback?: (response: any) => void): string {
         const encodingName = opts?.encoding ?? Net.DefaultEncoding;
         const encoder = Net.encoders.get(encodingName);
         if (!encoder) throw new Error(`Unknown encoder: ${encodingName}`);
@@ -33,8 +53,16 @@ export default class Net {
         // subscribe one-time response listener if callback provided
         if (callback) {
             const respChannel = `ipcs:${id}`;
-            const wrapper = (id: string, respPayload: any) => { try { callback(respPayload); } finally { Net.off(respChannel, wrapper as any); } };
+            const wrapper = (id: string, respPayload: any) => {
+                system.clearRun(timer);
+                Net.off(respChannel, wrapper as any);
+                callback(respPayload);
+            };
             Net.on(respChannel, wrapper as any);
+            const timer = system.runTimeout(() => {
+                Net.off(respChannel, wrapper as any);
+                opts?.onTimeout?.();
+            }, opts?.timeoutTicks ?? Net.ResponseTimeoutTicks);
         }
         const totalLen = raw.length;
         // compute overhead and fragment size to not exceed MAX_CHUNK per envelope
@@ -144,28 +172,52 @@ export default class Net {
             if (payload !== null) Net.dispatch(channel, payload, id, encodingName);
             return;
         }
-        // fragmented: buffer until all arrive
+        // fragmented: buffer until all arrive (in any order)
+        if (!Number.isInteger(frag) || frag < 0 || frag >= Net.MaxFragments) return;
+        const now = Date.now();
+        Net.dropStale(now);
         let buf = Net.buffers.get(id);
         if (!buf) {
-            buf = { parts: [] };
+            if (Net.buffers.size >= Net.MaxBuffers) Net.dropOldest();
+            buf = { parts: [], received: 0, touched: now };
             Net.buffers.set(id, buf);
         }
-        if (frag !== undefined && buf.parts[frag] === undefined) {
-            buf.parts[frag] = {
-                body,
-                frag: header.frag!,
-                last: header.last!,
-            };
-            if (header.last!) {
-                buf.lastIndex = frag;
-            }
+        buf.touched = now;
+        if (buf.parts[frag] === undefined) {
+            buf.parts[frag] = body;
+            buf.received++;
+            if (last) buf.lastIndex = frag;
         }
-        if (buf.lastIndex !== undefined && buf.parts.length === (buf.lastIndex + 1) && buf.parts.sort((a, b) => a.frag - b.frag)[buf.lastIndex].frag === buf.lastIndex) {
-            const full = buf.parts.map(p => p.body).join("");
+        if (buf.lastIndex !== undefined && buf.received === buf.lastIndex + 1) {
+            const full = buf.parts.join("");
             Net.buffers.delete(id);
             const payload = encoder.decode(full);
             if (payload !== null) Net.dispatch(channel, payload, id, encodingName);
         }
+    }
+
+    /** drop partial messages that got no fragment for BufferTimeoutMs */
+    private static dropStale(now: number) {
+        for (const [id, buf] of Net.buffers) {
+            if (now - buf.touched > Net.BufferTimeoutMs) Net.buffers.delete(id);
+        }
+    }
+
+    private static dropOldest() {
+        let oldestId: string | undefined;
+        let oldest = Infinity;
+        for (const [id, buf] of Net.buffers) {
+            if (buf.touched < oldest) {
+                oldest = buf.touched;
+                oldestId = id;
+            }
+        }
+        if (oldestId !== undefined) Net.buffers.delete(oldestId);
+    }
+
+    /** number of partial messages waiting for fragments */
+    public static pendingCount(): number {
+        return Net.buffers.size;
     }
 }
 

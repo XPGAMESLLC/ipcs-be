@@ -1,5 +1,7 @@
 import { system, world } from "@minecraft/server";
-import NetV1 from "./v1/net";
+import NetV1, { SendOptions } from "./v1/net";
+
+export type { SendOptions };
 
 let version = 1;
 const MaxVersion = 1;
@@ -16,20 +18,20 @@ export function setVersion(v: number) {
  * Send a script event, fragmenting JSON/text payload if needed. Optionally receive a response.
  * @param channel - The script-event channel to send to.
  * @param payload - The payload to send.
- * @param opts - Optional encoding and message ID.
- * @param callback - Optional callback to receive a response.
+ * @param opts - Optional encoding, message ID, and response timeout (`timeoutTicks`, `onTimeout`).
+ * @param callback - Optional callback to receive a response. It is dropped after the timeout.
  */
 export function send(
   channel: string,
   payload: any,
-  opts?: { encoding?: string; id?: string },
+  opts?: SendOptions,
   callback?: (response: any) => void
 ): string {
   if (version === 1) {
     return NetV1.send(channel, payload, {
+      ...opts,
       // By default, use the most preferred encoding
       encoding: opts?.encoding ?? supportedEncodings[0],
-      ...opts
     }, callback);
   }
   throw new Error(`IPCS-BE spec version ${version} is not supported`);
