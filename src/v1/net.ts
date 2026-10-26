@@ -1,4 +1,4 @@
-import { system } from "@minecraft/server";
+import { ScriptEventCommandMessageAfterEvent, system } from "@minecraft/server";
 import { IEncoder, SPEC_VERSION, MAX_CHUNK } from "./encoding/encoding";
 import { buildEnvelope, MetaHeader, EncHeader, RS, ETX, getEnvelopeLength } from "./envelope";
 import { makeUUID } from "../utils/uuid";
@@ -36,6 +36,38 @@ export default class Net {
     public static MaxFragments = 4096;
     /** how long send() waits for a response by default (20 ticks = 1 s) */
     public static ResponseTimeoutTicks = 200;
+    /** the engine only passes script events of these namespaces to the script */
+    private static namespaces = new Set<string>(["ipcs"]);
+    private static handler?: (evt: ScriptEventCommandMessageAfterEvent) => void;
+
+    /** (re)subscribe to script events with the current namespace filter; the old handler works until the new one is in */
+    public static subscribe(retry = true) {
+        const signal = system.afterEvents.scriptEventReceive;
+        const handler = (evt: ScriptEventCommandMessageAfterEvent) => Net.handleScriptEvent(evt.id, evt.message);
+        try {
+            signal.subscribe(handler, { namespaces: [...Net.namespaces] });
+        } catch (e) {
+            // not allowed in restricted execution (before events), the next tick is fine
+            if (retry) {
+                system.run(() => Net.subscribe(false));
+                return;
+            }
+            DEBUG: {
+                console.warn(`IPCS-BE: could not subscribe to script events: ${e}`);
+            }
+            return;
+        }
+        if (Net.handler) signal.unsubscribe(Net.handler);
+        Net.handler = handler;
+    }
+
+    private static watchNamespace(channel: string) {
+        const namespace = channel.split(":")[0];
+        if (Net.namespaces.has(namespace)) return;
+        Net.namespaces.add(namespace);
+        // before the first subscribe the new namespace is simply part of it
+        if (Net.handler) Net.subscribe();
+    }
 
     /**
      * Register a new encoder implementation by its unique name.
@@ -120,6 +152,7 @@ export default class Net {
         const arr = Net.listeners.get(channel) ?? [];
         arr.push(cb);
         Net.listeners.set(channel, arr);
+        Net.watchNamespace(channel);
     }
 
     /** unsubscribe a callback from a channel */
@@ -158,6 +191,8 @@ export default class Net {
 
     /** internal dispatcher: parse envelope, reassemble if needed, then fire user-cb */
     public static handleScriptEvent(channel: string, raw: string): void {
+        // every pack gets every script event, most of them are not for us
+        if (!Net.listeners.has(channel)) return;
         // split meta and rest
         const [metaPart, rest] = raw.split(RS, 2);
         if (!rest) return;

@@ -63,11 +63,7 @@ export function off(
 }
 
 // Register the IPCS-BE script event handler
-system.beforeEvents.startup.subscribe(() => {
-  system.afterEvents.scriptEventReceive.subscribe((evt) => {
-    NetV1.handleScriptEvent(evt.id, evt.message);
-  });
-});
+NetV1.subscribe();
 
 let initialized = false;
 

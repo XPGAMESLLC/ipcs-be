@@ -9,9 +9,10 @@ import {
 jest.mock(
   "@minecraft/server",
   () => {
-    const scriptEventListeners: ((
-      e: ScriptEventCommandMessageAfterEvent
-    ) => void)[] = [];
+    let scriptEventListeners: {
+      cb: (e: ScriptEventCommandMessageAfterEvent) => void;
+      namespaces?: string[];
+    }[] = [];
     return {
       ScriptEventSource: {
         Block: "Block",
@@ -31,9 +32,16 @@ jest.mock(
         afterEvents: {
           scriptEventReceive: {
             subscribe: (
+              cb: (e: ScriptEventCommandMessageAfterEvent) => void,
+              options?: { namespaces: string[] }
+            ) => {
+              scriptEventListeners.push({ cb, namespaces: options?.namespaces });
+              return cb;
+            },
+            unsubscribe: (
               cb: (e: ScriptEventCommandMessageAfterEvent) => void
             ) => {
-              scriptEventListeners.push(cb);
+              scriptEventListeners = scriptEventListeners.filter((l) => l.cb !== cb);
             },
           },
         },
@@ -55,7 +63,9 @@ jest.mock(
           if (message.length > 2048) {
             throw new Error("Script event message payload exceeds size of 2048");
           }
-          for (const cb of scriptEventListeners) {
+          const namespace = channel.split(":")[0];
+          for (const { cb, namespaces } of [...scriptEventListeners]) {
+            if (namespaces && !namespaces.includes(namespace)) continue;
             cb({
               id: channel,
               message: message,

@@ -4,7 +4,7 @@ A set of standardized types and functions for interacting with other Minecraft B
 
 ## Requirements
 
-The pack must depend on `@minecraft/server` 2.0.0 or newer in its manifest (stable or beta).
+The pack must depend on `@minecraft/server` 2.10.0 or newer in its manifest (stable or beta).
 
 ## Logging
 

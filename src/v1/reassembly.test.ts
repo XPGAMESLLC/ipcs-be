@@ -59,11 +59,13 @@ describe("reassembly", () => {
   test("the number of partial messages is capped", () => {
     Net.BufferTimeoutMs = 10_000;
     Net.MaxBuffers = 4;
+    Net.on("r:cap", () => {});
     for (let i = 0; i < 10; i++) Net.handleScriptEvent("r:cap", env(`dd${i}`, 0, false, "{"));
     expect(Net.pendingCount()).toBe(4);
   });
 
   test("bad fragment indices are refused", () => {
+    Net.on("r:bad", () => {});
     const before = Net.pendingCount();
     Net.handleScriptEvent("r:bad", env("ee01", -1, false, "{"));
     Net.handleScriptEvent("r:bad", env("ee02", Net.MaxFragments, false, "{"));
@@ -135,5 +137,18 @@ describe("api", () => {
     expect(() => setVersion(2)).toThrow("version 2");
     expect(() => setVersion(0)).toThrow("version 0");
     expect(() => setVersion(1)).not.toThrow();
+  });
+});
+
+describe("channels nobody listens to", () => {
+  test("are not decoded or buffered", () => {
+    const pending = Net.pendingCount();
+    const parse = jest.spyOn(JSON, "parse");
+    const payload = { s: "q".repeat(60) };
+    for (const p of fragments("dd01", payload, 3).slice(0, 2)) Net.handleScriptEvent("nobody:frag", p);
+    Net.handleScriptEvent("nobody:single", `1|text${RS}dd02${ETX}{"a":1}`);
+    expect(Net.pendingCount()).toBe(pending);
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
   });
 });
