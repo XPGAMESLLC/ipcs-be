@@ -7,6 +7,7 @@ import { Base64PacketEncoder } from "./encoding/Base64PacketEncoder";
 
 export interface SendOptions {
     encoding?: string;
+    /** message UUID: 32 hex digits, hyphens allowed, any case */
     id?: string;
     /** with a callback: stop waiting for the response after this many ticks (default Net.ResponseTimeoutTicks) */
     timeoutTicks?: number;
@@ -45,11 +46,18 @@ export default class Net {
 
     /** fire a script event, fragmenting JSON/text payload if needed. Optionally receive a response. */
     public static send(channel: string, payload: any, opts?: SendOptions, callback?: (response: any) => void): string {
+        // b64 carries the id as bytes, so the receiver sees it lowercase
+        const id = (opts?.id ?? makeUUID()).replace(/-/g, "").toLowerCase();
+        if (!/^[0-9a-f]{32}$/.test(id)) throw new Error(`Invalid message id "${opts?.id}": expected a UUID`);
+        return Net.sendWithId(channel, payload, id, opts, callback);
+    }
+
+    /** responses reuse the request id as it came, older versions did not check it */
+    private static sendWithId(channel: string, payload: any, id: string, opts?: SendOptions, callback?: (response: any) => void): string {
         const encodingName = opts?.encoding ?? Net.DefaultEncoding;
         const encoder = Net.encoders.get(encodingName);
         if (!encoder) throw new Error(`Unknown encoder: ${encodingName}`);
         const raw = encoder.encode(payload);
-        const id = (opts?.id ?? makeUUID()).replace(/-/g, "");
         // subscribe one-time response listener if callback provided
         if (callback) {
             const respChannel = `ipcs:${id}`;
@@ -135,7 +143,7 @@ export default class Net {
                 // provide respond function only for request listeners (non-ipcs channels)
                 if (id && !channel.startsWith('ipcs:')) {
                     const respond = (responsePayload: any) => {
-                        Net.send(`ipcs:${id}`, responsePayload, { encoding: encodingName, id });
+                        Net.sendWithId(`ipcs:${id}`, responsePayload, id, { encoding: encodingName });
                     };
                     cb(id, payload, respond);
                 } else if (id) {

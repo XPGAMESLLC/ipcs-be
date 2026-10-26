@@ -1,4 +1,5 @@
 import { MAX_CHUNK } from "./encoding/encoding";
+import { RS, ETX } from "./envelope";
 import Net from "./net";
 import '../index';
 
@@ -109,5 +110,36 @@ describe("Net listener errors", () => {
     expect(got).toEqual([{ a: 1 }]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("boom"));
     warn.mockRestore();
+  });
+});
+
+describe("Net message id", () => {
+  test.each([
+    ["text", "not-a-uuid"],
+    ["text", "a|b"],
+    ["b64", "z".repeat(32)],
+    ["b64", "abc"],
+  ])("%s rejects id %s before sending", (encoding, id) => {
+    const got: any[] = [];
+    Net.on("id:bad", (_id, data) => got.push(data));
+    expect(() => Net.send("id:bad", { a: 1 }, { encoding, id }, () => {})).toThrow("Invalid message id");
+    expect(got).toEqual([]);
+  });
+
+  test("uppercase hyphenated id gets a b64 response", (done) => {
+    Net.on("id:upper", (_id, _data, respond) => respond?.({ ok: true }));
+    const id = Net.send("id:upper", { a: 1 }, { encoding: "b64", id: "ABCDEF00-0000-4000-8000-000000000001" }, (resp) => {
+      expect(resp).toEqual({ ok: true });
+      done();
+    });
+    expect(id).toBe("abcdef00000040008000000000000001");
+  });
+
+  test("a request with a non-UUID text id from an older version still gets a response", () => {
+    const got: any[] = [];
+    Net.on("ipcs:OldStyle1", (_id, data) => got.push(data));
+    Net.on("id:old", (_id, _data, respond) => respond?.({ ok: true }));
+    Net.handleScriptEvent("id:old", `1|text${RS}OldStyle1${ETX}{"a":1}`);
+    expect(got).toEqual([{ ok: true }]);
   });
 });
