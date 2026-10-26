@@ -30,7 +30,8 @@ IPCS-BE defines a lightweight, backward-compatible way for Bedrock Add-Ons to ex
 
 ### 3.1  General
 
-* MUST follow Bedrock's permitted character set `()-.?A-Z_a-z`.
+* MUST follow Bedrock's permitted character set `()-.?0-9A-Z_a-z` (digits are needed by the per-request reply
+  channels `ipcs:<message id>`).
 * MUST be namespaced: `<namespace>:<id>`.
 * `ipcs` namespace is reserved for **control** channels (handshake, per-request replies, errors).
 * Packs SHOULD use their **pack UID** (32 hex chars, no hyphens) as namespace to avoid collisions.
