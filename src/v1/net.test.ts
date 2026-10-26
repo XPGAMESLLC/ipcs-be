@@ -1,4 +1,5 @@
 import { MAX_CHUNK } from "./encoding/encoding";
+import { system } from "@minecraft/server";
 import { RS, ETX } from "./envelope";
 import Net from "./net";
 import '../index';
@@ -141,5 +142,28 @@ describe("Net message id", () => {
     Net.on("id:old", (_id, _data, respond) => respond?.({ ok: true }));
     Net.handleScriptEvent("id:old", `1|text${RS}OldStyle1${ETX}{"a":1}`);
     expect(got).toEqual([{ ok: true }]);
+  });
+});
+
+describe("Net fragmentation boundary", () => {
+  const id = "0123456789abcdef0123456789abcdef";
+  // "1|text" RS id ETX {"s":"..."}
+  const fill = (envelopeLength: number) => "x".repeat(envelopeLength - 8 - 32 - 8);
+
+  test.each([
+    [MAX_CHUNK, 1],
+    [MAX_CHUNK + 1, 2],
+  ])("envelope of %i chars goes in %i event(s)", (length, events) => {
+    const spy = jest.spyOn(system, "sendScriptEvent");
+    const got: any[] = [];
+    const listener = (_id: string, data: any) => got.push(data);
+    Net.on("frag:edge", listener);
+    Net.send("frag:edge", { s: fill(length) }, { encoding: "text", id });
+    expect(spy).toHaveBeenCalledTimes(events);
+    for (const [, message] of spy.mock.calls) expect(message.length).toBeLessThanOrEqual(MAX_CHUNK);
+    if (events === 1) expect(spy.mock.calls[0][1].length).toBe(MAX_CHUNK);
+    expect(got).toEqual([{ s: fill(length) }]);
+    spy.mockRestore();
+    Net.off("frag:edge", listener);
   });
 });

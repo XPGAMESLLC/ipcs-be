@@ -74,15 +74,12 @@ export default class Net {
         }
         const totalLen = raw.length;
         // compute overhead and fragment size to not exceed MAX_CHUNK per envelope
-        const metaPart = `${SPEC_VERSION}|${encodingName}`;
         let chunks: string[][] = [];
         // estimate header length without fragmentation
         const meta: MetaHeader = { version: SPEC_VERSION, encoding: encodingName };
         const metaLength = getEnvelopeLength(meta);
         const noFragHdr = encoder.encodeHeader({ id });
-        const noFragHdrLen = noFragHdr.length;
-        const noFragOverhead = metaPart.length + RS.length + ETX.length + noFragHdrLen;
-        if (totalLen + noFragOverhead + metaLength <= MAX_CHUNK) {
+        if (totalLen + noFragHdr.length + metaLength <= MAX_CHUNK) {
             // fits without fragmentation
             chunks = [[noFragHdr, raw]];
         } else {
