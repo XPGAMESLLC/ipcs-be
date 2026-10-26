@@ -6,8 +6,8 @@ const MaxVersion = 1;
 const MinVersion = 1;
 
 export function setVersion(v: number) {
-  if (version < MinVersion || version > MaxVersion) {
-    throw new Error(`IPCS-BE spec version ${version} is not supported`);
+  if (v < MinVersion || v > MaxVersion) {
+    throw new Error(`IPCS-BE spec version ${v} is not supported`);
   }
   version = v;
 }
