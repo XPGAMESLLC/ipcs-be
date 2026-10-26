@@ -31,7 +31,7 @@
     "prepublishOnly": "npm run build"
   },
   "author": "XP GAMES",
-  "license": "GPL-3.0-only",
+  "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.6",
     "jest": "^29.7.0",

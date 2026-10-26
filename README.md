@@ -8,4 +8,4 @@ Feel free to raise an issue or submit a pull request if you have any improvement
 
 ## License
 
-This project is licensed under the GNU GPLv3 License.
+This project is licensed under the MIT License.
