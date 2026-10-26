@@ -45,6 +45,7 @@ jest.mock(
               cb({
                 blockComponentRegistry: {} as any,
                 customCommandRegistry: {} as any,
+                dimensionRegistry: {} as any,
                 itemComponentRegistry: {} as any,
               });
             },

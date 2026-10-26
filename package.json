@@ -43,8 +43,7 @@
     "eslint-plugin-minecraft-linting": "^1.1.0"
   },
   "dependencies": {
-    "@minecraft/server": "beta",
-    "@minecraft/common": "latest"
+    "@minecraft/server": "^2.0.0"
   },
   "publishConfig": {
     "access": "public"

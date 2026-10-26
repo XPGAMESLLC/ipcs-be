@@ -2,6 +2,10 @@
 
 A set of standardized types and functions for interacting with other Minecraft Bedrock Edition add-ons.
 
+## Requirements
+
+The pack must depend on `@minecraft/server` 2.0.0 or newer in its manifest (stable or beta).
+
 ## Logging
 
 Warnings (invalid hello packets, errors thrown by listeners) are wrapped in a `DEBUG:` label. Strip them in
